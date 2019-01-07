@@ -5,6 +5,7 @@ import org.apache.poi.openxml4j.opc.OPCPackage;
 import org.apache.poi.openxml4j.opc.PackageAccess;
 import org.apache.poi.xssf.eventusermodel.ReadOnlySharedStringsTable;
 import org.apache.poi.xssf.eventusermodel.XSSFReader;
+import org.apache.poi.xssf.model.StylesTable;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 import org.xml.sax.XMLReader;
@@ -26,7 +27,7 @@ import java.util.List;
  * <p>
  * 参考文档：https://docs.microsoft.com/en-us/office/open-xml/open-xml-sdk
  *
- * @author Tangqiandong
+ * @author Adoph
  * @version v1.0
  * @date 2018/12/29
  */
@@ -88,11 +89,12 @@ public class ExcelSaxReader {
     private List<List<String>> processSheets(OPCPackage pkg) throws IOException, OpenXML4JException, SAXException, ParserConfigurationException {
         ReadOnlySharedStringsTable sst = new ReadOnlySharedStringsTable(pkg);
         XSSFReader xssfReader = new XSSFReader(pkg);
+        StylesTable st = xssfReader.getStylesTable();
         List<List<String>> list = new ArrayList<>();
         Iterator<InputStream> sheets = xssfReader.getSheetsData();
         while (sheets.hasNext()) {
             InputStream stream = sheets.next();
-            list.addAll(processSheet(sst, stream));
+            list.addAll(processSheet(sst, st, stream));
             stream.close();
         }
         return list;
@@ -106,13 +108,13 @@ public class ExcelSaxReader {
      * @return 数据集合
      * @see org.apache.poi.xssf.eventusermodel.ReadOnlySharedStringsTable
      */
-    private List<List<String>> processSheet(ReadOnlySharedStringsTable sst, InputStream sheetInputStream)
+    private List<List<String>> processSheet(ReadOnlySharedStringsTable sst, StylesTable st, InputStream sheetInputStream)
             throws IOException, ParserConfigurationException, SAXException {
         InputSource sheetSource = new InputSource(sheetInputStream);
         SAXParserFactory saxFactory = SAXParserFactory.newInstance();
         SAXParser saxParser = saxFactory.newSAXParser();
         XMLReader sheetParser = saxParser.getXMLReader();
-        SheetHandler handler = new SheetHandler(sst);
+        SheetHandler handler = new SheetHandler(sst, st);
         sheetParser.setContentHandler(handler);
         sheetParser.parse(sheetSource);
         return handler.getTable();

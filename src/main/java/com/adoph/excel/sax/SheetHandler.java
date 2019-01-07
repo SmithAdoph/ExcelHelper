@@ -1,35 +1,40 @@
 package com.adoph.excel.sax;
 
+import org.apache.poi.ss.usermodel.DataFormatter;
 import org.apache.poi.ss.usermodel.DateUtil;
 import org.apache.poi.xssf.eventusermodel.ReadOnlySharedStringsTable;
+import org.apache.poi.xssf.model.StylesTable;
+import org.apache.poi.xssf.usermodel.XSSFCellStyle;
 import org.apache.poi.xssf.usermodel.XSSFRichTextString;
 import org.xml.sax.Attributes;
 import org.xml.sax.helpers.DefaultHandler;
 
-import java.math.BigDecimal;
 import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import static com.adoph.excel.sax.CellDataFormatIndex.DATE;
 import static com.adoph.excel.sax.ExcelSaxParseConstant.*;
-import static com.adoph.excel.sax.CellDataFormatIndex.*;
 
 /**
  * 具体sheet处理器
  *
- * @author Tangqiandong
+ * @author Adoph
  * @version v1.0
  * @date 2019/1/2
  */
 public class SheetHandler extends DefaultHandler {
 
     /**
-     * @see org.apache.poi.xssf.eventusermodel.ReadOnlySharedStringsTable
+     * 共享字符串
      */
     private ReadOnlySharedStringsTable sharedStringsTable;
+
+    /**
+     * 样式索引
+     */
+    private StylesTable stylesTable;
 
     /**
      * 是否为值
@@ -42,9 +47,9 @@ public class SheetHandler extends DefaultHandler {
     private CellDataType currentCellDataType;
 
     /**
-     * 当前单元格格式索引值，默认未常规类型
+     * 当前单元格样式索引
      */
-    private CellDataFormatIndex currentCellDataFormatIndex;
+    private Integer cellDataStyleIndex;
 
     /**
      * 当前第几列
@@ -86,8 +91,14 @@ public class SheetHandler extends DefaultHandler {
      */
     private DecimalFormat df = new DecimalFormat("0");
 
-    SheetHandler(ReadOnlySharedStringsTable strings) {
-        this.sharedStringsTable = strings;
+    /**
+     * 日期格式索引
+     */
+    private short[] dateDataFormatIndexes = {14, 177, 178, 31};
+
+    SheetHandler(ReadOnlySharedStringsTable sst, StylesTable st) {
+        this.sharedStringsTable = sst;
+        this.stylesTable = st;
         this.value = new StringBuilder(50);
         table = new ArrayList<>();
     }
@@ -113,13 +124,14 @@ public class SheetHandler extends DefaultHandler {
         if (qName.equals(CELL_TAG)) {
             //当前列数
             currentColumn = ExcelSaxUtils.getCol(attributes.getValue(CELL_ATTR_POSITION));
-            //默认是字符串
-//            currentCellDataType = CellDataType.INLINE_STR;
             //数据类型(nullable)
-//            String cellDataType = attributes.getValue(CELL_ATTR_DATA_TYPE);
+            String cellDataType = attributes.getValue(CELL_ATTR_DATA_TYPE);
+            this.currentCellDataType = cellDataType == null ? CellDataType.NONE : CellDataType.getByIndex(cellDataType);
             //样式索引(nullable)
             String cellStyleIndex = attributes.getValue(CELL_ATTR_TYPE);
-            this.currentCellDataFormatIndex = cellStyleIndex != null ? CellDataFormatIndex.getByIndex(Integer.valueOf(cellStyleIndex)) : CellDataFormatIndex.GENERIC;
+            if (cellStyleIndex != null) {
+                this.cellDataStyleIndex = Integer.valueOf(cellStyleIndex);
+            }
             return;
         }
 
@@ -136,37 +148,46 @@ public class SheetHandler extends DefaultHandler {
     public void endElement(String uri, String localName, String qName) {
         String str = null;
         if (qName.equals(CELL_VALUE_TAG)) {
-            switch (currentCellDataFormatIndex) {
-                case GENERIC:
+            //数据类型
+            switch (currentCellDataType) {
+                case SHARED_STR:
                     str = new XSSFRichTextString(sharedStringsTable.getEntryAt(Integer.parseInt(value.toString()))).toString();
                     break;
-                case NUMERICAL:
-                    str = df.format(new BigDecimal(value.toString()));
+                case NUMBER:
+                    str = value.toString();
                     break;
-                case CURRENCY:
-                    break;
-                case ACCOUNTANT_DEDICATED:
+                case BOOLEAN:
+                    str = value.toString().equals("1") ? "TRUE" : "FALSE";
                     break;
                 case DATE:
-                    str = new SimpleDateFormat("yyyy/MM/dd").format(DateUtil.getJavaDate(Double.parseDouble(value.toString())));
                     break;
-                case DATETIME:
-                    str = new SimpleDateFormat("yyyy/MM/dd hh:mm:ss").format(DateUtil.getJavaDate(Double.parseDouble(value.toString())));
-                    break;
-                case PERCENTAGE:
-                    break;
-                case FRACTION:
-                    break;
-                case SCIENTIFIC_NOTATION:
-                    break;
-                case TEXT:
-                    break;
-                case SPECIAL:
-                    break;
-                default:
+                case INLINE_STR:
                     str = new XSSFRichTextString(sharedStringsTable.getEntryAt(Integer.parseInt(value.toString()))).toString();
+                    break;
+                case STRING:
+                    str = value.toString();
+                    break;
+                case ERROR:
+                    str = "ERROR FORMAT";
+                    break;
+                case NONE:
+                    if (cellDataStyleIndex != null) {
+                        XSSFCellStyle style = stylesTable.getStyleAt(cellDataStyleIndex);
+                        short dataFormat = style.getDataFormat();
+//                        System.out.println("索引：" + dataFormat + "____" + style.getDataFormatString() + "____"
+//                                + BuiltinFormats.getBuiltinFormat(dataFormat));
+                        double val = Double.parseDouble(value.toString());
+                        if (containsVal(dataFormat)) {
+                            if (DateUtil.isValidExcelDate(val)) {
+                                SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+                                str = sdf.format(DateUtil.getJavaDate(val));
+                            }
+                        } else {
+                            str = new DataFormatter().formatRawCellContents(val, dataFormat, style.getDataFormatString());
+                        }
+                    }
+                    break;
             }
-
             row[currentColumn - 1] = str;
         }
 
@@ -186,5 +207,14 @@ public class SheetHandler extends DefaultHandler {
 
     List<List<String>> getTable() {
         return table;
+    }
+
+    private boolean containsVal(short val) {
+        for (short item : dateDataFormatIndexes) {
+            if (item == val) {
+                return true;
+            }
+        }
+        return false;
     }
 }

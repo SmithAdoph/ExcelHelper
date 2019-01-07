@@ -1,9 +1,10 @@
 package com.adoph.excel.sax;
 
 /**
- * 单元格数据类型
+ * 单元格数据类型:
+ * 参考：https://docs.microsoft.com/en-us/dotnet/api/documentformat.openxml.spreadsheet.cellvalues?view=openxml-2.8.1
  *
- * @author Tangqiandong
+ * @author Adoph
  * @version v1.0
  * @date 2019/1/2
  */
@@ -16,7 +17,19 @@ public enum CellDataType {
     /**
      * 数字
      */
-    NUMBER("b"),
+    NUMBER("n"),
+
+    /**
+     * 布尔
+     */
+    BOOLEAN("b"),
+
+    /**
+     * 日期类型：
+     * <p>
+     * When the item is serialized out as xml, its value is "d".This item is only available in Office2010.
+     */
+    DATE("d"),
 
     /**
      * 内联元素，允许作为子元素，不存在公式
@@ -31,7 +44,12 @@ public enum CellDataType {
     /**
      * Cell containing an error.
      */
-    ERROR("e");
+    ERROR("e"),
+
+    /**
+     * 未设置
+     */
+    NONE("null");
 
     private String index;
 
@@ -45,5 +63,15 @@ public enum CellDataType {
 
     CellDataType(String index) {
         this.index = index;
+    }
+
+    public static CellDataType getByIndex(String index) {
+        for (CellDataType item :
+                CellDataType.values()) {
+            if (item.getIndex().equals(index)) {
+                return item;
+            }
+        }
+        return CellDataType.NONE;
     }
 }

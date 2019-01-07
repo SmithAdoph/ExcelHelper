@@ -5,7 +5,7 @@ import java.util.EnumMap;
 /**
  * Excel元数据
  *
- * @author Tangqiandong
+ * @author Adoph
  * @version v1.0
  * @date 2018/12/29
  */
