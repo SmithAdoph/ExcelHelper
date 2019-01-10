@@ -37,6 +37,11 @@ public class SheetHandler extends DefaultHandler {
     private StylesTable stylesTable;
 
     /**
+     * 行读监听
+     */
+    private ExcelReadListener readListener;
+
+    /**
      * 是否为值
      */
     private boolean isValue;
@@ -77,12 +82,12 @@ public class SheetHandler extends DefaultHandler {
     private List<List<String>> table;
 
     /**
-     * 总列数
+     * 当前sheet总列数
      */
     private int totalCol;
 
     /**
-     * 总行数
+     * 当前sheet总行数
      */
     private int totalRow;
 
@@ -103,6 +108,13 @@ public class SheetHandler extends DefaultHandler {
         table = new ArrayList<>();
     }
 
+    SheetHandler(ReadOnlySharedStringsTable sst, StylesTable st, ExcelReadListener readListener) {
+        this.sharedStringsTable = sst;
+        this.stylesTable = st;
+        this.value = new StringBuilder(50);
+        this.readListener = readListener;
+    }
+
     @Override
     public void startElement(String uri, String localName, String qName, Attributes attributes) {
         //解析excel元数据，列数、行数等
@@ -110,6 +122,7 @@ public class SheetHandler extends DefaultHandler {
             ExcelSheetMetadata metadata = ExcelSaxUtils.getMetadata(attributes.getValue(DIMENSION_ATTR_REF));
             this.totalCol = metadata.totalCol();//设置列
             row = new String[this.totalCol];//初始化行
+            //TODO 暂且忽略多个sheet，通常需求就会要求导入的时候只允许一个sheet存在，你同意吗？
             this.totalRow += metadata.totalRow();//多个sheet需要叠加总行数
             return;
         }
@@ -174,8 +187,6 @@ public class SheetHandler extends DefaultHandler {
                     if (cellDataStyleIndex != null) {
                         XSSFCellStyle style = stylesTable.getStyleAt(cellDataStyleIndex);
                         short dataFormat = style.getDataFormat();
-//                        System.out.println("索引：" + dataFormat + "____" + style.getDataFormatString() + "____"
-//                                + BuiltinFormats.getBuiltinFormat(dataFormat));
                         double val = Double.parseDouble(value.toString());
                         if (containsVal(dataFormat)) {
                             if (DateUtil.isValidExcelDate(val)) {
@@ -192,7 +203,15 @@ public class SheetHandler extends DefaultHandler {
         }
 
         if (qName.equals(ROW_TAG)) {
-            table.add(Arrays.asList(row));
+            List<String> rowList = Arrays.asList(row);
+            if (readListener == null) {
+                table.add(rowList);
+            } else {
+                readListener.readRow(totalRow, currentRow, rowList);
+                if (currentRow == totalRow) {
+                    readListener.readDone(totalRow);
+                }
+            }
             row = null;
             row = new String[totalCol];
         }

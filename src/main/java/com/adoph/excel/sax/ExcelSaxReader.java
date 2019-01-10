@@ -46,6 +46,15 @@ public class ExcelSaxReader {
     /**
      * 读Excel 07版xlsx格式
      *
+     * @param is 文件流
+     */
+    public static void readExcel(InputStream is, ExcelReadListener readListener) throws OpenXML4JException, IOException, ParserConfigurationException, SAXException {
+        new ExcelSaxReader().process(is, readListener);
+    }
+
+    /**
+     * 读Excel 07版xlsx格式
+     *
      * @param path 文件路径
      * @return 数据集合
      */
@@ -64,6 +73,15 @@ public class ExcelSaxReader {
             data = processSheets(pkg);
         }
         return data;
+    }
+
+    /**
+     * 监听模式解析excel
+     */
+    private void process(InputStream is, ExcelReadListener readListener) throws OpenXML4JException, ParserConfigurationException, SAXException, IOException {
+        try (OPCPackage pkg = OPCPackage.open(is)) {
+            processSheets(pkg, readListener);
+        }
     }
 
     /**
@@ -101,6 +119,24 @@ public class ExcelSaxReader {
     }
 
     /**
+     * 解析sheets
+     *
+     * @param pkg OPCPackage
+     * @see org.apache.poi.openxml4j.opc.OPCPackage
+     */
+    private void processSheets(OPCPackage pkg, ExcelReadListener readListener) throws IOException, OpenXML4JException, SAXException, ParserConfigurationException {
+        ReadOnlySharedStringsTable sst = new ReadOnlySharedStringsTable(pkg);
+        XSSFReader xssfReader = new XSSFReader(pkg);
+        StylesTable st = xssfReader.getStylesTable();
+        Iterator<InputStream> sheets = xssfReader.getSheetsData();
+        while (sheets.hasNext()) {
+            InputStream stream = sheets.next();
+            processSheet(sst, st, stream, readListener);
+            stream.close();
+        }
+    }
+
+    /**
      * 解析sheet
      *
      * @param sst              共享字符串
@@ -118,6 +154,24 @@ public class ExcelSaxReader {
         sheetParser.setContentHandler(handler);
         sheetParser.parse(sheetSource);
         return handler.getTable();
+    }
+
+    /**
+     * 解析sheet
+     *
+     * @param sst              共享字符串
+     * @param sheetInputStream sheet流
+     * @see org.apache.poi.xssf.eventusermodel.ReadOnlySharedStringsTable
+     */
+    private void processSheet(ReadOnlySharedStringsTable sst, StylesTable st, InputStream sheetInputStream, ExcelReadListener readListener)
+            throws IOException, ParserConfigurationException, SAXException {
+        InputSource sheetSource = new InputSource(sheetInputStream);
+        SAXParserFactory saxFactory = SAXParserFactory.newInstance();
+        SAXParser saxParser = saxFactory.newSAXParser();
+        XMLReader sheetParser = saxParser.getXMLReader();
+        SheetHandler handler = new SheetHandler(sst, st, readListener);
+        sheetParser.setContentHandler(handler);
+        sheetParser.parse(sheetSource);
     }
 
 }
