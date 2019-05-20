@@ -135,6 +135,9 @@ public class SheetHandler extends DefaultHandler {
 
         //解析单元格,设置数据类型
         if (qName.equals(CELL_TAG)) {
+            this.currentCellDataType = CellDataType.NONE;
+            this.cellDataStyleIndex = null;
+
             //当前列数
             currentColumn = ExcelSaxUtils.getCol(attributes.getValue(CELL_ATTR_POSITION));
             //数据类型(nullable)
@@ -164,21 +167,17 @@ public class SheetHandler extends DefaultHandler {
             //数据类型
             switch (currentCellDataType) {
                 case SHARED_STR:
+                case INLINE_STR:
                     str = new XSSFRichTextString(sharedStringsTable.getEntryAt(Integer.parseInt(value.toString()))).toString();
                     break;
                 case NUMBER:
+                case STRING:
                     str = value.toString();
                     break;
                 case BOOLEAN:
                     str = value.toString().equals("1") ? "TRUE" : "FALSE";
                     break;
                 case DATE:
-                    break;
-                case INLINE_STR:
-                    str = new XSSFRichTextString(sharedStringsTable.getEntryAt(Integer.parseInt(value.toString()))).toString();
-                    break;
-                case STRING:
-                    str = value.toString();
                     break;
                 case ERROR:
                     str = "ERROR FORMAT";
@@ -188,14 +187,18 @@ public class SheetHandler extends DefaultHandler {
                         XSSFCellStyle style = stylesTable.getStyleAt(cellDataStyleIndex);
                         short dataFormat = style.getDataFormat();
                         double val = Double.parseDouble(value.toString());
-                        if (containsVal(dataFormat)) {
+                        //TODO 某些日期类型无法处理，比如：2019年5月20日
+                        /*if (containsVal(dataFormat)) {
                             if (DateUtil.isValidExcelDate(val)) {
                                 SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
                                 str = sdf.format(DateUtil.getJavaDate(val));
                             }
                         } else {
                             str = new DataFormatter().formatRawCellContents(val, dataFormat, style.getDataFormatString());
-                        }
+                        }*/
+                        str = new DataFormatter().formatRawCellContents(val, dataFormat, style.getDataFormatString());
+                    } else {
+                        str = value.toString();
                     }
                     break;
             }

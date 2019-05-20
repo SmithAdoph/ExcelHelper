@@ -1,7 +1,6 @@
 package com.adoph.excel;
 
 import com.adoph.excel.sax.ExcelReadListener;
-import com.adoph.excel.sax.ExcelSaxReader;
 import org.apache.poi.openxml4j.exceptions.OpenXML4JException;
 import org.junit.Test;
 import org.xml.sax.SAXException;
@@ -23,10 +22,16 @@ public class ReadTest {
     @Test
     public void readBySax1() throws OpenXML4JException, ParserConfigurationException, SAXException, IOException {
         long start = System.currentTimeMillis();
-        InputStream is = FileUtil.getResourcesFileInputStream("2007.xlsx");
+        InputStream is = FileUtil.getResourcesFileInputStream("测试文件.xlsx");
         List<List<String>> dataList = ExcelHelper.readBySax(is);
         System.out.println("读取总计" + dataList.size() + "条，耗时：" + (System.currentTimeMillis() - start) + "毫秒");
-//        print(dataList);
+        print(dataList);
+
+//        long start1 = System.currentTimeMillis();
+//        InputStream is1 = FileUtil.getResourcesFileInputStream("4月薪酬明细模板2.xlsx");
+//        List<List<String>> dataList1 = ExcelHelper.readBySax(is1);
+//        System.out.println("读取总计" + dataList1.size() + "条，耗时：" + (System.currentTimeMillis() - start1) + "毫秒");
+//        print(dataList1);
     }
 
     /**
